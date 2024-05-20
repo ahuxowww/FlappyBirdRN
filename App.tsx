@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Canvas,
+  Circle,
   Group,
   Image,
   Text,
@@ -12,6 +13,7 @@ import {Platform, useWindowDimensions} from 'react-native';
 import {
   Easing,
   Extrapolation,
+  cancelAnimation,
   interpolate,
   runOnJS,
   useAnimatedReaction,
@@ -52,7 +54,7 @@ const App = () => {
   const birdX = {
     x: width / 4,
   };
-  const birdY = useSharedValue(height / 2);
+  const birdY = useSharedValue(height / 3);
   const birdYVelocity = useSharedValue(100);
   const birdOrigin = useDerivedValue(() => {
     return {x: width / 4 + 24, y: birdY.value + 12};
@@ -70,8 +72,10 @@ const App = () => {
       },
     ];
   });
-
-  React.useEffect(() => {
+  const gameOver = useSharedValue(false);
+  const birdCenterX = useDerivedValue(() => birdX.x + 24);
+  const birdCenterY = useDerivedValue(() => birdY.value + 12);
+  const moveTheMap = () => {
     pipeX.value = withRepeat(
       withSequence(
         withTiming(-150, {duration: 3000, easing: Easing.linear}),
@@ -79,7 +83,11 @@ const App = () => {
       ),
       -1,
     );
-  }, [birdY, height, pipeX, width]);
+  };
+
+  React.useEffect(() => {
+    moveTheMap();
+  }, [moveTheMap]);
 
   useAnimatedReaction(
     () => pipeX.value,
@@ -95,17 +103,69 @@ const App = () => {
       }
     },
   );
-  console.log(score);
+
+  useAnimatedReaction(
+    () => birdY.value,
+    (currentValue, previousValue) => {
+      if (currentValue > height - 100 || currentValue < 0) {
+        gameOver.value = true;
+      }
+
+      //bottom
+      if (
+        birdCenterX.value >= pipeX.value &&
+        birdCenterX.value <= pipeX.value + 104 &&
+        birdCenterY.value >= height - 320 - pipeOffset &&
+        birdCenterY.value <= height - 320 - pipeOffset + 104
+      ) {
+        gameOver.value = true;
+      }
+
+      //top
+      if (
+        birdCenterX.value >= pipeX.value &&
+        birdCenterX.value <= pipeX.value + 104 &&
+        birdCenterY.value >= pipeOffset - 320 &&
+        birdCenterY.value <= pipeOffset - 320 + 104
+      ) {
+        gameOver.value = true;
+      }
+    },
+  );
+
+  useAnimatedReaction(
+    () => gameOver.value,
+    (currentValue, previousValue) => {
+      if (currentValue && !previousValue) {
+        cancelAnimation(pipeX);
+      }
+    },
+  );
+
   useFrameCallback(({timeSincePreviousFrame: dt}) => {
-    if (!dt) {
+    if (!dt || gameOver.value) {
       return;
     }
     birdY.value = birdY.value + (birdYVelocity.value * dt) / 1000;
     birdYVelocity.value = birdYVelocity.value + (GRAVITY * dt) / 1000;
   });
 
+  const restartGame = () => {
+    'worklet';
+    birdY.value = height / 3;
+    birdYVelocity.value = 0;
+    pipeX.value = width;
+    gameOver.value = false;
+    runOnJS(moveTheMap)();
+    runOnJS(setScore)(0);
+  };
+
   const gesture = Gesture.Tap().onStart(() => {
-    birdYVelocity.value = -300;
+    if (gameOver.value) {
+      restartGame();
+    } else {
+      birdYVelocity.value = -300;
+    }
   });
 
   return (
@@ -137,6 +197,7 @@ const App = () => {
           <Group transform={birdTransform} origin={birdOrigin}>
             <Image image={bird} x={birdX.x} y={birdY} width={48} height={24} />
           </Group>
+          <Circle cy={birdCenterY} cx={birdCenterX} r={10} />
           <Text
             x={width / 2 - 60}
             y={100}
