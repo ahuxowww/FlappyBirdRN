@@ -1,118 +1,78 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
 import React from 'react';
-import type {PropsWithChildren} from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
-
+  Canvas,
+  Circle,
+  Group,
+  Image,
+  useImage,
+} from '@shopify/react-native-skia';
+import {useWindowDimensions} from 'react-native';
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  Easing,
+  useFrameCallback,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+const GRAVITY = 9.8; //m/s
+const App = () => {
+  const {height, width} = useWindowDimensions();
+  const bg = useImage(require('./assets/Image/background-day.png'));
+  const bird = useImage(require('./assets/Image/yellowbird-downflap.png'));
+  const pipe = useImage(require('./assets/Image/pipe-green.png'));
+  const pipeTop = useImage(require('./assets/Image/pipe-green-top.png'));
+  const base = useImage(require('./assets/Image/base.png'));
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+  const pipeOffset = 0;
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const pipeX = useSharedValue(width);
+  const birdY = useSharedValue(height / 2);
+  const birdYVelocity = useSharedValue(100);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  useFrameCallback(({timeSincePreviousFrame: dt}) => {
+    if (!dt) {
+      return;
+    }
+    birdY.value = birdY.value + (birdYVelocity.value * dt) / 1000;
+    birdYVelocity.value = birdYVelocity.value + (GRAVITY * dt) / 1000;
+
+  });
+
+  React.useEffect(() => {
+    pipeX.value = withRepeat(
+      withSequence(
+        withTiming(-150, {duration: 3000, easing: Easing.linear}),
+        withTiming(width, {duration: 0}),
+      ),
+      -1,
+    );
+  }, [birdY, height, pipeX, width]);
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <Canvas
+      style={{width, height}}
+      onTouch={() => (birdYVelocity.value = -100)}>
+      <Image image={bg} fit={'cover'} width={width} height={height} />
+      <Image
+        image={pipe}
+        width={104}
+        height={640}
+        x={pipeX}
+        y={height - 320 - pipeOffset}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <Image
+        image={pipeTop}
+        width={104}
+        height={640}
+        x={pipeX}
+        y={-320 - pipeOffset}
+      />
+      <Image image={base} x={0} y={height - 75} width={width} height={150} />
+
+      <Image image={bird} x={120} y={birdY} width={32} height={24} />
+    </Canvas>
   );
-}
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
-
+};
 export default App;
