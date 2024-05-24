@@ -41,6 +41,8 @@ const App = () => {
   };
   const font = matchFont(fontStyle);
   const [score, setScore] = React.useState(0);
+  const [startGame, setStartGame] = React.useState(true);
+  const [gameOverValue, setGameOverValue] = React.useState(false);
   const bg = useImage(require('./assets/Image/background-day.png'));
   const bird = useImage(require('./assets/Image/yellowbird-downflap.png'));
   const pipe = useImage(require('./assets/Image/pipe-green.png'));
@@ -82,25 +84,18 @@ const App = () => {
       },
     ];
   });
-  const startGame = useSharedValue(true);
   const gameOver = useSharedValue(false);
   const topPipeY = useDerivedValue(() => pipeOffset.value - 320);
   const bottomPipeY = useDerivedValue(() => height - 320 + pipeOffset.value);
   const pipesSpeed = useDerivedValue(() => {
     return interpolate(score, [0, 20], [1, 2]);
   });
-  const gameOverValue = useDerivedValue(() => {
-    return gameOver.value && !startGame.value;
-  });
 
-  const startGameValue = useDerivedValue(() => {
-    return startGame.value;
-  });
   const pipeWidth = 104;
   const pipeHeight = 640;
 
   const moveTheMap = useCallback(() => {
-    if (startGame.value === false) {
+    if (startGame === false) {
       pipeX.value = withSequence(
         withTiming(width, {duration: 0}),
         withTiming(-150, {
@@ -110,7 +105,7 @@ const App = () => {
         withTiming(width, {duration: 0}),
       );
     }
-  }, [pipeX, pipesSpeed.value, startGame.value, width]);
+  }, [pipeX, pipesSpeed.value, startGame, width]);
 
   const obstacles = useDerivedValue(() => [
     // bottom pipe
@@ -162,6 +157,7 @@ const App = () => {
     (currentValue, previousValue) => {
       if (currentValue > height - 100 || currentValue < 0) {
         gameOver.value = true;
+        runOnJS(setGameOverValue)(true);
       }
 
       const center = {
@@ -174,6 +170,7 @@ const App = () => {
       );
       if (isColliding) {
         gameOver.value = true;
+        runOnJS(setGameOverValue)(true);
       }
     },
   );
@@ -188,7 +185,7 @@ const App = () => {
   );
 
   useFrameCallback(({timeSincePreviousFrame: dt}) => {
-    if (!dt || gameOver.value || startGame.value) {
+    if (!dt || gameOver.value || startGame) {
       return;
     }
     birdY.value = birdY.value + (birdYVelocity.value * dt) / 1000;
@@ -201,18 +198,19 @@ const App = () => {
     birdYVelocity.value = 0;
     pipeX.value = width;
     gameOver.value = false;
+    runOnJS(setGameOverValue)(false);
     runOnJS(moveTheMap)();
     runOnJS(setScore)(0);
   };
 
   const startGameFunc = () => {
     'worklet';
-    startGame.value = false;
+    runOnJS(setStartGame)(false);
     runOnJS(moveTheMap)();
   };
 
   const gesture = Gesture.Tap().onStart(() => {
-    if (startGame.value) {
+    if (startGame) {
       startGameFunc();
     } else if (gameOver.value) {
       restartGame();
@@ -250,7 +248,7 @@ const App = () => {
           <Group transform={birdTransform} origin={birdOrigin}>
             <Image image={bird} x={birdX.x} y={birdY} width={48} height={24} />
           </Group>
-          {gameOverValue.value ? (
+          {gameOverValue && !startGame ? (
             <Image
               image={gameOverImage}
               width={192}
@@ -259,7 +257,7 @@ const App = () => {
               y={height / 2 - 60}
             />
           ) : null}
-          {startGameValue.value ? (
+          {startGame ? (
             <Image
               image={startGameImage}
               width={184}
